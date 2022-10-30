@@ -10,6 +10,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "printDataSet", "printDataSe
 		{0A9C5298-C6F9-4A01-8D3C-0B5CAA3EB6BD} = {0A9C5298-C6F9-4A01-8D3C-0B5CAA3EB6BD}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "eigenTest", "eigenTest\eigenTest.vcxproj", "{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -34,6 +36,14 @@ Global
 		{379F3C0A-6A12-4FD2-8A8E-4B6709620D73}.Release|x64.Build.0 = Release|x64
 		{379F3C0A-6A12-4FD2-8A8E-4B6709620D73}.Release|x86.ActiveCfg = Release|Win32
 		{379F3C0A-6A12-4FD2-8A8E-4B6709620D73}.Release|x86.Build.0 = Release|Win32
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Debug|x64.ActiveCfg = Debug|x64
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Debug|x64.Build.0 = Debug|x64
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Debug|x86.ActiveCfg = Debug|Win32
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Debug|x86.Build.0 = Debug|Win32
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Release|x64.ActiveCfg = Release|x64
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Release|x64.Build.0 = Release|x64
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Release|x86.ActiveCfg = Release|Win32
+		{2B3C08DE-44FA-4B8E-B55B-21AE1864AA1A}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -30,12 +30,13 @@ std::vector<int>  readLabels(std::string const &filename)
         throw_runtime_error("failed to read magic & number of items "+filename);
     }
 
-    if(magic != 0x01080000)
+    magic    = std::byteswap(magic);
+    numItems = std::byteswap(numItems);
+
+    if(magic != 0x00000801)
     {
         throw_runtime_error("magic number incorrect "+filename);
     }
-
-    numItems = std::byteswap(numItems);
 
     std::vector<int>    labels(numItems);
 
@@ -81,14 +82,17 @@ std::vector<Image>  readImages(std::string const &filename)
         throw_runtime_error("failed to read header "+filename);
     }
 
-    if(magic != 0x03080000)
+
+    magic    = std::byteswap(magic);
+    numItems = std::byteswap(numItems);
+    height   = std::byteswap(height);
+    width    = std::byteswap(width);
+
+    if(magic != 0x00000803)
     {
         throw_runtime_error("magic number incorrect "+filename);
     }
 
-    numItems = std::byteswap(numItems);
-    height   = std::byteswap(height);
-    width    = std::byteswap(width);
 
     std::vector<Image>    images;
     images.reserve(numItems);
