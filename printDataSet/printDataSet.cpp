@@ -1,7 +1,6 @@
 ﻿#include <windows.h>
 #include "idx/idx.h"
 #include "include/print.h"
-#pragma comment(lib,"idx")
 #include <array>
 int main()
 try
@@ -9,8 +8,8 @@ try
     auto conOut = GetStdHandle( STD_OUTPUT_HANDLE );
     SetConsoleOutputCP( CP_UTF8 );
 
-    auto labels = idx::readLabels("data\\train-labels.idx1-ubyte");
-    auto images = idx::readImages("data\\train-images.idx3-ubyte");
+    auto labels = idx::readLabels("datasets\\train-labels.idx1-ubyte");
+    auto images = idx::readImages("datasets\\train-images.idx3-ubyte");
 
     if(labels.size() != images.size())
     {
