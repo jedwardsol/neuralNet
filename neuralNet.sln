@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "idx", "idx\idx.vcxproj", "{0A9C5298-C6F9-4A01-8D3C-0B5CAA3EB6BD}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "printDataSet", "printDataSet\printDataSet.vcxproj", "{379F3C0A-6A12-4FD2-8A8E-4B6709620D73}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0A9C5298-C6F9-4A01-8D3C-0B5CAA3EB6BD} = {0A9C5298-C6F9-4A01-8D3C-0B5CAA3EB6BD}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

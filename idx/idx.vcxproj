@@ -150,6 +150,9 @@
     <ClCompile Include="idx.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\include\image.h" />
+    <ClInclude Include="..\include\print.h" />
+    <ClInclude Include="..\include\thrower.h" />
     <ClInclude Include="idx.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
