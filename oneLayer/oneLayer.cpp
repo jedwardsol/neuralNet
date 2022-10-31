@@ -13,11 +13,11 @@
 #include <chrono>
 namespace chr=std::chrono;
 #include "idx/idx.h"
-
+#include "include/matrixIO.h"
 
 constexpr int  inputLayerSize{28*28};
 constexpr int  outputLayerSize{10};
-constexpr int  hiddenLayerSize{32}; //{(inputLayerSize + outputLayerSize)/2};
+constexpr int  hiddenLayerSize{(inputLayerSize + outputLayerSize)/2};
 
 using InputLayer   = Eigen::Matrix<double,inputLayerSize,1>;
 
@@ -37,63 +37,23 @@ double sigmoid(double x)
     return 1/(1+std::exp(-x));
 }
 
+double normalisePixel(uint8_t c)
+{
+    return c/256.0;
+}
 
-InputLayer      inputLayer{};
-
-Weights1        weights1{};                 // 2Mb
+Weights1        weights1{};                
 Biases1         biases1{};      
-
-HiddenLayer     hiddenLayer{};  
-
 Weights2        weights2{};     
 Biases2         biases2{};      
-
-OutputLayer     outputLayer{};
-
-
-template <typename M>
-void write(M const &matrix, std::string const &filename)
-{
-    std::ofstream   file{filename,std::ios::binary};
-
-    if(!file)
-    {
-        throw_system_error("open " + filename);
-    }
-
-    file.write(reinterpret_cast<char const*>(matrix.data()), matrix.rows()*matrix.cols()*sizeof(M::Scalar));
-
-    if(!file)
-    {
-        throw_system_error("write " + filename);
-    }
-}
-
-template <typename M>
-void read(M &matrix, std::string const &filename)
-{
-    std::ifstream   file{filename,std::ios::binary};
-
-    if(!file)
-    {
-        throw_system_error("open " + filename);
-    }
-
-    file.read(reinterpret_cast<char*>(matrix.data()), matrix.rows()*matrix.cols()*sizeof(M::Scalar));
-
-    if(!file)
-    {
-        throw_system_error("read " + filename);
-    }
-}
 
 
 void randomise()
 {
     weights1.setRandom();
-    biases1.setRandom();    
+//  biases1.setRandom();    
     weights2.setRandom();
-    biases2.setRandom();
+//  biases2.setRandom();
 
     write(weights1,"matrices\\1l_weights1");
     write(biases1, "matrices\\1l_biases1");
@@ -102,15 +62,15 @@ void randomise()
 }
 
 
-void costs()
+void analyse(std::string const &labelFile,std::string const &imageFile,bool checkResult)
 {
     read(weights1,"matrices\\1l_weights1");
     read(biases1, "matrices\\1l_biases1");
     read(weights2,"matrices\\1l_weights2");
     read(biases2, "matrices\\1l_biases2");
 
-    auto labels = idx::readLabels("datasets\\train-labels.idx1-ubyte");
-    auto images = idx::readImages("datasets\\train-images.idx3-ubyte");
+    auto labels = idx::readLabels(labelFile);
+    auto images = idx::readImages(imageFile);
 
     if(labels.size() != images.size())
     {
@@ -119,30 +79,47 @@ void costs()
 
     auto start = chr::steady_clock::now();
     
+    int total{};
+    int correct{};
+
     for(int i=0;i<images.size();i++)
     {
         auto const  label=labels[i];        
         auto const &image=images[i];        
 
-        OutputLayer desiredOutput{};
+        InputLayer      inputLayer{};
+        std::ranges::transform(image.pixels, inputLayer.begin(), normalisePixel);
+
+        HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
+        OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
+
+        OutputLayer     desiredOutput{};
         desiredOutput[label]=1.0;
 
-        for(int pixel=0;pixel<image.pixels.size();pixel++)
+        int             maxIndex{};
+        auto            maxCoeff = outputLayer.maxCoeff(&maxIndex);
+
+        total++;
+        if(label==maxIndex)
         {
-            inputLayer[pixel]=image.pixels[pixel]/256.0;
+            correct++;
         }
 
-        hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
-        outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
+        if(!checkResult)
+        {
+            auto            costs = (outputLayer-desiredOutput).array().square();
+            auto            cost  = costs.sum();
 
-        int maxIndex{};
-        auto maxCoeff = outputLayer.maxCoeff(&maxIndex);
-        auto cost = (outputLayer-desiredOutput).array().square().sum();
-
-        print("{} : {} cost={}\n",label,maxIndex,cost);
+            print("{} : {} cost={}\n",label,maxIndex,cost);
+        }
     }
 
     auto end = chr::steady_clock::now();
+
+    if(checkResult)
+    {
+        print("correct = {}/{} = {}%\n",correct,total, correct*100.0/total);
+    }
 
     print("Duration {}\n",chr::duration_cast<chr::seconds>(end-start));
 }
@@ -157,7 +134,7 @@ try
 
     if(args.empty())
     {
-        throw_runtime_error("oneLayer random|costs\n");
+        throw_runtime_error("oneLayer random|costs|train|test\n");
     }
 
     if(args[0]=="random")
@@ -166,13 +143,23 @@ try
     }
     else if(args[0]=="costs")
     {
-        costs();
+        analyse("datasets\\train-labels.idx1-ubyte",
+                "datasets\\train-images.idx3-ubyte",
+              false);
+    }
+    else if(args[0]=="train")
+    {
+    }
+    else if(args[0]=="test")
+    {
+        analyse("datasets\\t10k-labels.idx1-ubyte",
+                "datasets\\t10k-images.idx3-ubyte",
+                true);
     }
     else
     {
         throw_runtime_error("oneLayer random|costs\n");
     }
-
 }
 catch(std::exception const &e)
 {
