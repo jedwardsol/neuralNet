@@ -48,7 +48,7 @@ void dynamic()
     MatrixXd layer1 = (weights*layer+biases).unaryExpr(&sigmoid);
 
 
-    std::cout << layer1 << std::endl;
+    std::cout << layer1 << '\n';
 }
 
 void fixed()
@@ -78,12 +78,35 @@ void fixed()
     Matrix<double,2,1> layer1 = (weights*layer+biases).unaryExpr(&sigmoid);
 
 
-    std::cout << layer1 << std::endl;
+    std::cout << layer1 << '\n';
+}
+
+
+void mult()
+{
+    using matrix = Eigen::Matrix<double,3,1>;
+
+    matrix one {10,20,30};
+    matrix two {1,2,3};
+
+    auto doubler = [](double d){ return d*2; };
+
+
+    matrix answer = (one-two).array() * two.unaryExpr(doubler).array();
+
+    // 10-1 * 2 = 38
+    // 20-2 * 4 = 72
+    // 30-3 * 6 = 162
+
+    std::cout << answer << '\n';
+
 }
 
 int main()
 {
     dynamic();
     fixed();
+
+    mult();
 
 }

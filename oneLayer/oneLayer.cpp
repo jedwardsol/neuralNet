@@ -29,13 +29,19 @@ using HiddenLayer  = Eigen::Matrix<double,hiddenLayerSize,1>;
 using Weights2     = Eigen::Matrix<double,outputLayerSize,hiddenLayerSize>;
 using Biases2      = Eigen::Matrix<double,outputLayerSize,1>;
 
-
 using OutputLayer  = Eigen::Matrix<double,outputLayerSize,1>;
 
 double sigmoid(double x)
 {
-    return 1/(1+std::exp(-x));
+    return 1.0/(1.0+std::exp(-x));
 }
+
+
+double sigmoid_derivative(double x)
+{
+	return x * (1.0 - x);
+}
+
 
 double normalisePixel(uint8_t c)
 {
@@ -62,7 +68,7 @@ void randomise()
 }
 
 
-void analyse(std::string const &labelFile,std::string const &imageFile,bool checkResult)
+void analyse(std::string const &labelFile,std::string const &imageFile,bool showEachScore)
 {
     read(weights1,"matrices\\1l_weights1");
     read(biases1, "matrices\\1l_biases1");
@@ -81,6 +87,7 @@ void analyse(std::string const &labelFile,std::string const &imageFile,bool chec
     
     int total{};
     int correct{};
+    double totalCost{};
 
     for(int i=0;i<images.size();i++)
     {
@@ -105,10 +112,10 @@ void analyse(std::string const &labelFile,std::string const &imageFile,bool chec
             correct++;
         }
 
-        if(!checkResult)
+        if(showEachScore)
         {
-            auto            costs = (outputLayer-desiredOutput).array().square();
-            auto            cost  = costs.sum();
+            double  cost = (outputLayer-desiredOutput).array().square().sum();
+            totalCost += cost;
 
             print("{} : {} cost={}\n",label,maxIndex,cost);
         }
@@ -116,13 +123,60 @@ void analyse(std::string const &labelFile,std::string const &imageFile,bool chec
 
     auto end = chr::steady_clock::now();
 
-    if(checkResult)
+    print("Correct  = {}/{} = {}%\n",correct,total, correct*100.0/total);
+    print("Cost     = {}\n",totalCost);
+    print("Duration = {}\n",chr::duration_cast<chr::seconds>(end-start));
+}
+
+
+
+void train()
+{
+    read(weights1,"matrices\\1l_weights1");
+    read(biases1, "matrices\\1l_biases1");
+    read(weights2,"matrices\\1l_weights2");
+    read(biases2, "matrices\\1l_biases2");
+
+    auto labels = idx::readLabels("datasets\\train-labels.idx1-ubyte");
+    auto images = idx::readImages("datasets\\train-images.idx3-ubyte");
+
+
+    if(labels.size() != images.size())
     {
-        print("correct = {}/{} = {}%\n",correct,total, correct*100.0/total);
+        print("sizes don't match\n");
     }
+
+    auto start = chr::steady_clock::now();
+    
+    double totalCost{};
+
+    for(int i=0;i<images.size();i++)
+    {
+        auto const  label=labels[i];        
+        auto const &image=images[i];        
+
+        InputLayer      inputLayer{};
+        std::ranges::transform(image.pixels, inputLayer.begin(), normalisePixel);
+
+        HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
+        OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
+
+        OutputLayer     desiredOutput{};
+        desiredOutput[label]=1.0;
+
+        OutputLayer     errors = (outputLayer-desiredOutput).array() * outputLayer.unaryExpr(&sigmoid_derivative).array();
+
+        double          cost = (outputLayer-desiredOutput).array().square().sum();
+        totalCost =+ cost;
+
+    }
+
+    auto end = chr::steady_clock::now();
+
 
     print("Duration {}\n",chr::duration_cast<chr::seconds>(end-start));
 }
+
 
 
 int main(int argc, char *argv[])
@@ -145,16 +199,17 @@ try
     {
         analyse("datasets\\train-labels.idx1-ubyte",
                 "datasets\\train-images.idx3-ubyte",
-              false);
+                true);
     }
     else if(args[0]=="train")
     {
+        train();
     }
     else if(args[0]=="test")
     {
         analyse("datasets\\t10k-labels.idx1-ubyte",
                 "datasets\\t10k-images.idx3-ubyte",
-                true);
+                false);
     }
     else
     {
