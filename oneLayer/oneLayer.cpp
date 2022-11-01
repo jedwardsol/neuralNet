@@ -79,6 +79,16 @@ void randomise()
     write(biases2, "matrices\\1l_biases2");
 }
 
+auto analyse(Image const &image)
+{
+    InputLayer      inputLayer{};
+    std::ranges::transform(image.pixels, inputLayer.begin(), normalisePixel);
+
+    HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
+    OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
+
+    return outputLayer;
+}
 
 void analyse(std::string const &labelFile,std::string const &imageFile, bool showMistakes)
 {
@@ -106,11 +116,8 @@ void analyse(std::string const &labelFile,std::string const &imageFile, bool sho
         auto const  label=labels[i];        
         auto const &image=images[i];        
 
-        InputLayer      inputLayer{};
-        std::ranges::transform(image.pixels, inputLayer.begin(), normalisePixel);
+        auto outputLayer = analyse(image);
 
-        HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
-        OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
 
         OutputLayer     desiredOutput;
         desiredOutput.fill(0);
@@ -118,6 +125,7 @@ void analyse(std::string const &labelFile,std::string const &imageFile, bool sho
 
         int             maxIndex{};
         auto            maxCoeff = outputLayer.maxCoeff(&maxIndex);
+
 
         total++;
         if(label==maxIndex)
@@ -138,11 +146,7 @@ void analyse(std::string const &labelFile,std::string const &imageFile, bool sho
                 }
                 print("\n");
             }
-
-
         }
-
-
 
         double  cost = (outputLayer-desiredOutput).array().square().sum();
         totalCost += cost;
@@ -229,8 +233,6 @@ void train()
                 weights2(outputNeuron,hiddenNeuron) -= trainingRate * outputSlope[outputNeuron] * hiddenLayer[hiddenNeuron];
             }
         }
-
-
     }
 
     auto end = chr::steady_clock::now();
@@ -245,18 +247,134 @@ void train()
     print("Duration {}\n",chr::duration_cast<chr::seconds>(end-start));
 }
 
+void draw()
+{
+    read(weights1,"matrices\\1l_weights1");
+    read(biases1, "matrices\\1l_biases1");
+    read(weights2,"matrices\\1l_weights2");
+    read(biases2, "matrices\\1l_biases2");
 
+    Image   image{28,28,std::vector<uint8_t>(28*28)};
+
+    auto clear = []
+    {
+        print("\x1b[2J");       //cls
+        print("\x1b[3J");       //cls
+        print("\x1b[0;0H");     //goto 0,0
+
+        print("c : clear  x : quit  LMB : draw  RMB : erase\n");
+        print("+----------------------------+\n");
+        for(int i=0;i<28;i++)
+        {
+            print("|                            |\n");
+        }
+        print("+----------------------------+\n");
+    };
+
+
+    auto go = [&]()
+    {
+        auto            outputLayer=analyse(image);        
+        int             maxIndex{};
+        auto            maxCoeff = outputLayer.maxCoeff(&maxIndex);
+
+        print("\x1b[32;1H");     //goto 30,0
+        print("I think it is {}.  {:.2}%  ",maxIndex,maxCoeff*100);
+    };
+
+
+    clear();
+    go();
+
+
+
+    auto conIn = GetStdHandle( STD_INPUT_HANDLE );
+
+    DWORD mode{};
+    GetConsoleMode(conIn, &mode);
+    mode |=  ENABLE_MOUSE_INPUT ;
+    SetConsoleMode(conIn, mode);
+
+    
+    INPUT_RECORD    input;
+    DWORD           read{};
+    while(ReadConsoleInputA(conIn,&input,1,&read))
+    {
+        switch(input.EventType)
+        {
+        case KEY_EVENT :
+            if(input.Event.KeyEvent.uChar.AsciiChar == 'c')
+            {
+                image.pixels = std::vector<uint8_t>(28*28);
+                clear();
+                go();
+            }
+            else if(input.Event.KeyEvent.uChar.AsciiChar == 'x')
+            {
+                return;
+            }
+            break;
+
+        case MOUSE_EVENT :
+            {
+                auto &pos = input.Event.MouseEvent.dwMousePosition;
+                auto  pixel = pos;
+
+                pixel.X -= 1;
+                pixel.Y -= 2;
+
+                if(    pixel.X <  0 || pixel.Y <  0
+                   ||  pixel.X > 28 || pixel.X > 28)
+                {
+                    continue;
+                }
+
+                auto index = pixel.Y*28+pixel.X;
+
+                if(input.Event.MouseEvent.dwButtonState & FROM_LEFT_1ST_BUTTON_PRESSED )
+                {
+                    if(image.pixels[index] == 0)
+                    {
+                        print("\x1b[{};{}HX",pos.Y+1,pos.X+1);     
+                        image.pixels[index] = 255;
+                        go();
+                    }
+                }
+                else if(input.Event.MouseEvent.dwButtonState & RIGHTMOST_BUTTON_PRESSED )
+                {
+                    if(image.pixels[index] == 255)
+                    {
+                        print("\x1b[{};{}H ",pos.Y+1,pos.X+1);     
+                        image.pixels[index] = 0;
+                        go();
+                    }
+                }
+            }
+            break;
+        }
+    }
+}
 
 int main(int argc, char *argv[])
 try
 {
     auto conOut = GetStdHandle( STD_OUTPUT_HANDLE );
     SetConsoleOutputCP( CP_UTF8 );
+
+    DWORD mode = 0;
+    GetConsoleMode(conOut, &mode);
+
+    mode |=  ENABLE_VIRTUAL_TERMINAL_PROCESSING ;
+    mode &= ~ENABLE_QUICK_EDIT_MODE;
+
+    SetConsoleMode(conOut, mode);
+
+
     std::vector<std::string>    args(argv+1,argv+argc);
 
     if(args.empty())
     {
-        throw_runtime_error("oneLayer random|costs|test|mistakes\n");
+        throw_runtime_error("oneLayer random|costs|test|mistakes|draw\n");
     }
 
     if(args[0]=="random")
@@ -272,6 +390,10 @@ try
     {
         train();
     }
+    else if(args[0]=="draw")
+    {
+        draw();
+    }
     else if(args[0]=="test")
     {
         analyse("datasets\\t10k-labels.idx1-ubyte",
@@ -284,7 +406,7 @@ try
     }
     else
     {
-        throw_runtime_error("oneLayer random|costs|train|test|mistakes\n");
+        throw_runtime_error("oneLayer random|costs|test|mistakes|draw\n");
     }
 }
 catch(std::exception const &e)
