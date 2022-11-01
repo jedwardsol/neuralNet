@@ -1,4 +1,4 @@
-// one hidden layer
+﻿// one hidden layer
 
 #define EIGEN_STACK_ALLOCATION_LIMIT 0
 
@@ -15,9 +15,11 @@ namespace chr=std::chrono;
 #include "idx/idx.h"
 #include "include/matrixIO.h"
 
-constexpr int  inputLayerSize{28*28};
-constexpr int  outputLayerSize{10};
-constexpr int  hiddenLayerSize{(inputLayerSize + outputLayerSize)/2};
+constexpr double    trainingRate{0.01};
+
+constexpr int       inputLayerSize{28*28};
+constexpr int       outputLayerSize{10};
+constexpr int       hiddenLayerSize{(inputLayerSize + outputLayerSize)/2};
 
 using InputLayer   = Eigen::Matrix<double,inputLayerSize,1>;
 
@@ -30,6 +32,16 @@ using Weights2     = Eigen::Matrix<double,outputLayerSize,hiddenLayerSize>;
 using Biases2      = Eigen::Matrix<double,outputLayerSize,1>;
 
 using OutputLayer  = Eigen::Matrix<double,outputLayerSize,1>;
+
+std::array<char8_t const*,5> blocks
+{
+    u8" ",
+    u8"░",
+    u8"▒",
+    u8"▓",
+    u8"█",
+};
+
 
 double sigmoid(double x)
 {
@@ -68,7 +80,7 @@ void randomise()
 }
 
 
-void analyse(std::string const &labelFile,std::string const &imageFile,bool showEachScore)
+void analyse(std::string const &labelFile,std::string const &imageFile, bool showMistakes)
 {
     read(weights1,"matrices\\1l_weights1");
     read(biases1, "matrices\\1l_biases1");
@@ -100,7 +112,8 @@ void analyse(std::string const &labelFile,std::string const &imageFile,bool show
         HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
         OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
 
-        OutputLayer     desiredOutput{};
+        OutputLayer     desiredOutput;
+        desiredOutput.fill(0);
         desiredOutput[label]=1.0;
 
         int             maxIndex{};
@@ -111,14 +124,28 @@ void analyse(std::string const &labelFile,std::string const &imageFile,bool show
         {
             correct++;
         }
-
-        if(showEachScore)
+        else if(showMistakes)
         {
-            double  cost = (outputLayer-desiredOutput).array().square().sum();
-            totalCost += cost;
+            print("Should be {}.  Net said {}\n",label,maxIndex);
 
-            print("{} : {} cost={}\n",label,maxIndex,cost);
+            for(int row=0;row<image.height;row++)
+            {
+                for(int col=0;col<image.width;col++)
+                {
+                    auto pixel = image.pixels[row*image.width+col];
+                    auto block = blocks[ pixel * 5 / 256];
+                    print("{}",reinterpret_cast<char const*>(block));
+                }
+                print("\n");
+            }
+
+
         }
+
+
+
+        double  cost = (outputLayer-desiredOutput).array().square().sum();
+        totalCost += cost;
     }
 
     auto end = chr::steady_clock::now();
@@ -148,12 +175,13 @@ void train()
 
     auto start = chr::steady_clock::now();
     
-    double totalCost{};
 
-    for(int i=0;i<images.size();i++)
+    for(int index=0;index<images.size();index++)
     {
-        auto const  label=labels[i];        
-        auto const &image=images[i];        
+        print("{}\r",index);
+
+        auto const  label=labels[index];        
+        auto const &image=images[index];        
 
         InputLayer      inputLayer{};
         std::ranges::transform(image.pixels, inputLayer.begin(), normalisePixel);
@@ -161,17 +189,57 @@ void train()
         HiddenLayer     hiddenLayer = (weights1*inputLayer +biases1).unaryExpr(&sigmoid);
         OutputLayer     outputLayer = (weights2*hiddenLayer+biases2).unaryExpr(&sigmoid);
 
-        OutputLayer     desiredOutput{};
+        OutputLayer     desiredOutput;
+        desiredOutput.fill(0);
         desiredOutput[label]=1.0;
 
-        OutputLayer     errors = (outputLayer-desiredOutput).array() * outputLayer.unaryExpr(&sigmoid_derivative).array();
+        // Calculate errors
 
-        double          cost = (outputLayer-desiredOutput).array().square().sum();
-        totalCost =+ cost;
+        // error at outputNeuron[x] = outputDelta[x]  * dsigma(outputNeuron[x])
+
+        OutputLayer     outputDelta  = (outputLayer-desiredOutput);
+        OutputLayer     outputSlope  = outputDelta.array() * outputLayer.unaryExpr(&sigmoid_derivative).array();
+
+        HiddenLayer     hiddenSlope{};
+
+        // error at hiddenNeuron[x] = Σ (outputDelta[j] * weight x->j ) * dsigma(hiddenNeuron[x])
+        for(int i=0;i<hiddenSlope.size();i++)
+        {
+            // TODO : fancy way to do this?
+            hiddenSlope[i] = (outputDelta.array() * weights2.col(i).array()).sum() * sigmoid_derivative(hiddenLayer[i]);
+        }
+
+        // update weights
+
+        // input -> hidden
+        for(int hiddenNeuron=0;hiddenNeuron<weights1.rows();hiddenNeuron++)
+        {
+            for(int inputNeuron=0;inputNeuron<weights1.cols();inputNeuron++)
+            {
+                weights1(hiddenNeuron,inputNeuron) -= trainingRate * hiddenSlope[hiddenNeuron] * inputLayer[inputNeuron];
+            }
+        }
+
+        // hidden -> output
+
+        for(int outputNeuron=0;outputNeuron<weights2.rows();outputNeuron++)
+        {
+            for(int hiddenNeuron=0;hiddenNeuron<weights2.cols();hiddenNeuron++)
+            {
+                weights2(outputNeuron,hiddenNeuron) -= trainingRate * outputSlope[outputNeuron] * hiddenLayer[hiddenNeuron];
+            }
+        }
+
 
     }
 
     auto end = chr::steady_clock::now();
+
+
+    write(weights1,"matrices\\1l_weights1");
+    write(biases1, "matrices\\1l_biases1");
+    write(weights2,"matrices\\1l_weights2");
+    write(biases2, "matrices\\1l_biases2");
 
 
     print("Duration {}\n",chr::duration_cast<chr::seconds>(end-start));
@@ -188,7 +256,7 @@ try
 
     if(args.empty())
     {
-        throw_runtime_error("oneLayer random|costs|train|test\n");
+        throw_runtime_error("oneLayer random|costs|test|mistakes\n");
     }
 
     if(args[0]=="random")
@@ -198,8 +266,7 @@ try
     else if(args[0]=="costs")
     {
         analyse("datasets\\train-labels.idx1-ubyte",
-                "datasets\\train-images.idx3-ubyte",
-                true);
+                "datasets\\train-images.idx3-ubyte",false);
     }
     else if(args[0]=="train")
     {
@@ -208,12 +275,16 @@ try
     else if(args[0]=="test")
     {
         analyse("datasets\\t10k-labels.idx1-ubyte",
-                "datasets\\t10k-images.idx3-ubyte",
-                false);
+                "datasets\\t10k-images.idx3-ubyte",false);
+    }
+    else if(args[0]=="mistakes")
+    {
+        analyse("datasets\\t10k-labels.idx1-ubyte",
+                "datasets\\t10k-images.idx3-ubyte",true);
     }
     else
     {
-        throw_runtime_error("oneLayer random|costs\n");
+        throw_runtime_error("oneLayer random|costs|train|test|mistakes\n");
     }
 }
 catch(std::exception const &e)
